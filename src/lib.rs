@@ -1,6 +1,7 @@
 extern crate crypto;
 extern crate serde;
 extern crate serde_json;
+extern crate rocket;
 
 #[macro_use]
 extern crate serde_derive;
@@ -8,17 +9,21 @@ extern crate serde_derive;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 use std::time;
+use rocket::data::{self, FromData};
+use rocket::http::{Status, ContentType};
+use rocket::{Request, Data, Outcome};
+use rocket::Outcome::*;
 
-#[derive(Clone, Serialize, PartialEq, Debug)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
 pub struct Transaction {
-    sender: String,
-    recipient: String,
-    amount: u32,
+    pub sender: String,
+    pub recipient: String,
+    pub amount: u32,
 }
 
 #[derive(Clone, Serialize, PartialEq, Debug)]
-pub struct FullChain{
-    pub chain: Vec<Block>,
+pub struct FullChain<'a>{
+    pub chain: &'a Vec<Block>,
     pub length: u64,
 }
 
@@ -75,11 +80,17 @@ impl Blockchain {
         self.chain.push(block);
     }
 
+    pub fn chain(&self) -> &Vec<Block> {
+        &self.chain
+    }
+
+    pub fn transactions(&self) -> &Vec<Transaction> {&self.current_transactions}
+
     fn clear_transactions(&mut self) {
         self.current_transactions = vec![]
     }
 
-    fn new_transaction(&mut self, sender: &str, recipient: &str, amount: u32) -> u32 {
+    pub fn new_transaction(&mut self, sender: &str, recipient: &str, amount: u32) -> u32 {
         self.current_transactions
             .push(Transaction::new(sender, recipient, amount));
         self.last_block().unwrap().index - 1
