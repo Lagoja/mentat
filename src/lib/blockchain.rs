@@ -1,11 +1,3 @@
-extern crate crypto;
-extern crate serde;
-extern crate serde_json;
-extern crate rocket;
-
-#[macro_use]
-extern crate serde_derive;
-
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 use std::time;
@@ -13,18 +5,14 @@ use rocket::data::{self, FromData};
 use rocket::http::{Status, ContentType};
 use rocket::{Request, Data, Outcome};
 use rocket::Outcome::*;
+use serde_json;
+use uuid::Uuid;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
 pub struct Transaction {
     pub sender: String,
     pub recipient: String,
     pub amount: u32,
-}
-
-#[derive(Clone, Serialize, PartialEq, Debug)]
-pub struct FullChain<'a>{
-    pub chain: &'a Vec<Block>,
-    pub length: u64,
 }
 
 impl Transaction {
@@ -39,11 +27,11 @@ impl Transaction {
 
 #[derive(Clone, Serialize, PartialEq, Debug)]
 pub struct Block {
-    index: u32,
-    timestamp: time::SystemTime,
-    transactions: Vec<Transaction>,
-    proof: u32,
-    previous_hash: u32,
+    pub index: u32,
+    pub timestamp: time::SystemTime,
+    pub transactions: Vec<Transaction>,
+    pub proof: u64,
+    pub previous_hash: String,
 }
 
 #[derive(PartialEq, Debug)]
@@ -64,10 +52,10 @@ impl Blockchain {
     }
 
     pub fn genesis_block(&mut self) {
-        self.new_block(1, 100);
+        self.new_block("1".to_string(), 100);
     }
 
-    fn new_block(&mut self, previous_hash: u32, proof: u32) {
+    pub fn new_block(&mut self, previous_hash: String, proof: u64) -> &Block {
         let block = Block {
             index: (self.chain.len() + 1) as u32,
             timestamp: time::SystemTime::now(),
@@ -78,6 +66,7 @@ impl Blockchain {
 
         self.clear_transactions();
         self.chain.push(block);
+        self.chain.iter().next_back().expect("Failed to get last block")
     }
 
     pub fn chain(&self) -> &Vec<Block> {
@@ -96,19 +85,21 @@ impl Blockchain {
         self.last_block().unwrap().index - 1
     }
 
-    fn hash(block: Block) -> String {
+    pub fn hash_block(block: &Block) -> String {
         let block_string = serde_json::to_string(&block).unwrap();
         let mut hasher = Sha256::new();
         hasher.input_str(&block_string[..]);
         hasher.result_str()
     }
 
-    fn last_block(&self) -> Option<&Block> {
+    pub fn last_block(&self) -> Option<&Block> {
         self.chain.last()
     }
 
-    fn proof_of_work(&self, last_proof: u32) -> u32 {
-        let mut proof: u32 = 0;
+    pub fn proof_of_work(&self) -> u64 {
+        let last_block = self.last_block().expect("Error retrieving last block");
+        let last_proof = last_block.proof;
+        let mut proof: u64 = 0;
         while !self.valid_proof(last_proof, proof) {
             proof += 1;
         }
@@ -116,7 +107,20 @@ impl Blockchain {
         proof
     }
 
-    pub fn valid_proof(&self, last_proof: u32, proof: u32) -> bool {
+    pub fn last_block_hash(&self) -> String {
+        let last_block = self.last_block().unwrap();
+        Blockchain::hash_block(last_block)
+    }
+
+    pub fn mine(&mut self, node_identifier: &Uuid) -> Result<&Block, String>{
+        let proof = self.proof_of_work();
+        self.new_transaction("0", &(node_identifier).simple().to_string(), 1);
+        let previous_hash = self.last_block_hash();
+        let new_block = self.new_block(previous_hash, proof);
+        Ok(&new_block)
+    }
+
+    pub fn valid_proof(&self, last_proof: u64, proof: u64) -> bool {
         let mut hasher = Sha256::new();
         let mut guess = last_proof.to_string();
         let p_str = proof.to_string();

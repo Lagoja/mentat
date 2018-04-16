@@ -2,14 +2,20 @@
 #![feature(plugin, decl_macro)]
 #![plugin(rocket_codegen)]
 
-extern crate mentat;
+extern crate crypto;
 extern crate rocket;
 extern crate rocket_contrib;
 extern crate uuid;
 extern crate serde;
 extern crate serde_json;
 
-use mentat::{Blockchain, FullChain, Transaction};
+#[macro_use]
+extern crate serde_derive;
+
+mod lib;
+
+use lib::blockchain::{Blockchain, Transaction, Block};
+use lib::response_types::{MineResponse, FullChainResponse};
 use rocket::http::RawStr;
 use rocket::State;
 use rocket_contrib::Json;
@@ -34,8 +40,18 @@ impl BlockchainState {
 }
 
 #[get("/mine")]
-pub fn mine() -> &'static str {
-    "We'll mine a new block here"
+pub fn mine(bc: State<BlockchainState>, node_identifier: State<Uuid>) -> JsonResult {
+    match bc.blockchain.write() {
+        Ok(mut blockchain) => {
+            match blockchain.mine(&node_identifier.inner()){
+                Ok(block) => to_json(mine_response(block)),
+                Err(e) => Err(e.to_string())
+            }
+
+        }
+        Err(e) => Err(e.to_string())
+    }
+
 }
 
 #[post("/transactions/new", format = "application/json", data = "<transaction>")]
@@ -65,12 +81,30 @@ pub fn full_chain(bc: State<BlockchainState>) -> JsonResult {
     }
 }
 
-pub fn chain(b: &Blockchain) -> FullChain {
+#[get("/hello/<name>")]
+pub fn hello(name: &RawStr) -> String {
+    format!("Hello, {}!", name.as_str())
+}
+
+//API + Utility Functions
+
+pub fn chain(b: &Blockchain) -> FullChainResponse {
     let chain = b.chain();
-    FullChain {
+    FullChainResponse {
         chain,
         length: chain.len() as u64,
     }
+}
+
+pub fn mine_response(b: &Block) -> MineResponse {
+    MineResponse {
+        message: String::from("Returning Block"),
+        index: b.index,
+        transactions: b.transactions.clone(),
+        previous_hash: b.previous_hash.clone(),
+        proof: b.proof,
+    }
+
 }
 
 pub fn to_json<T>(response: T) -> JsonResult
@@ -80,12 +114,6 @@ pub fn to_json<T>(response: T) -> JsonResult
         Err(err) => Err(err.to_string())
     }
 }
-
-#[get("/hello/<name>")]
-pub fn hello(name: &RawStr) -> String {
-    format!("Hello, {}!", name.as_str())
-}
-
 
 fn main() {
     let b: BlockchainState = BlockchainState::new();
