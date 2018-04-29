@@ -5,25 +5,27 @@
 extern crate crypto;
 extern crate rocket;
 extern crate rocket_contrib;
-extern crate uuid;
 extern crate serde;
-extern crate serde_json;
-
 #[macro_use]
 extern crate serde_derive;
+extern crate serde_json;
+extern crate uuid;
+extern crate hyper;
+extern crate tokio_core;
+extern crate futures;
 
-mod lib;
-
-use lib::blockchain::{Blockchain, Transaction, Block};
-use lib::response_types::{MineResponse, FullChainResponse};
+use lib::blockchain::{Block, Blockchain, Transaction};
+use lib::response_types::{FullChainResponse, MineResponse};
 use rocket::http::RawStr;
+use rocket::response::content;
 use rocket::State;
 use rocket_contrib::Json;
-use rocket::response::content;
+use serde::Serialize;
 use std::rc::Rc;
 use std::sync::RwLock;
-use serde::Serialize;
 use uuid::Uuid;
+
+mod lib;
 
 pub struct BlockchainState {
     pub blockchain: RwLock<Blockchain>,
@@ -43,15 +45,13 @@ impl BlockchainState {
 pub fn mine(bc: State<BlockchainState>, node_identifier: State<Uuid>) -> JsonResult {
     match bc.blockchain.write() {
         Ok(mut blockchain) => {
-            match blockchain.mine(&node_identifier.inner()){
+            match blockchain.mine(&node_identifier.inner()) {
                 Ok(block) => to_json(mine_response(block)),
                 Err(e) => Err(e.to_string())
             }
-
         }
         Err(e) => Err(e.to_string())
     }
-
 }
 
 #[post("/transactions/new", format = "application/json", data = "<transaction>")]
@@ -66,7 +66,7 @@ pub fn new_transaction(bc: State<BlockchainState>, transaction: Json<Transaction
 }
 
 #[get("/transactions")]
-pub fn transactions(bc: State<BlockchainState>) -> JsonResult{
+pub fn transactions(bc: State<BlockchainState>) -> JsonResult {
     match bc.blockchain.read() {
         Ok(blockchain) => to_json(&blockchain.transactions()),
         Err(e) => Err(e.to_string())
@@ -104,12 +104,11 @@ pub fn mine_response(b: &Block) -> MineResponse {
         previous_hash: b.previous_hash.clone(),
         proof: b.proof,
     }
-
 }
 
 pub fn to_json<T>(response: T) -> JsonResult
     where T: Serialize {
-    match serde_json::to_string(&response){
+    match serde_json::to_string(&response) {
         Ok(serialized) => Ok(content::Json(serialized)),
         Err(err) => Err(err.to_string())
     }
