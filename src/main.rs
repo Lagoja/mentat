@@ -3,6 +3,7 @@
 #![plugin(rocket_codegen)]
 
 extern crate crypto;
+extern crate reqwest;
 extern crate rocket;
 extern crate rocket_contrib;
 extern crate serde;
@@ -10,18 +11,13 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate uuid;
-extern crate hyper;
-extern crate tokio_core;
-extern crate futures;
 
-use lib::blockchain::{Block, Blockchain, Transaction};
-use lib::response_types::{FullChainResponse, MineResponse};
-use rocket::http::RawStr;
+use lib::blockchain::{Block, Blockchain, Transaction, NodeList};
+use lib::response_types::{FullChainResponse, MineResponse, NodeRegResponse, NodeResolveResponse};
 use rocket::response::content;
 use rocket::State;
 use rocket_contrib::Json;
 use serde::Serialize;
-use std::rc::Rc;
 use std::sync::RwLock;
 use uuid::Uuid;
 
@@ -81,9 +77,39 @@ pub fn full_chain(bc: State<BlockchainState>) -> JsonResult {
     }
 }
 
-#[get("/hello/<name>")]
-pub fn hello(name: &RawStr) -> String {
-    format!("Hello, {}!", name.as_str())
+#[get("/nodes")]
+pub fn nodes(bc: State<BlockchainState>) -> JsonResult{
+    match bc.blockchain.read(){
+        Ok(blockchain) => to_json(&blockchain.nodes),
+        Err(e) => Err(e.to_string())
+    }
+}
+
+#[post("/nodes/register", format = "application/json", data = "<node_list>")]
+pub fn register_nodes(bc: State<BlockchainState>, node_list: Json<NodeList>) -> JsonResult {
+    match bc.blockchain.write(){
+        Ok(mut blockchain) => {
+            for node in node_list.node_list.clone() {
+                blockchain.register_node(node);
+            }
+            to_json(node_reg(&blockchain))
+        },
+        Err(e) => Err(e.to_string())
+    }
+}
+
+#[get("/nodes/resolve",)]
+pub fn resolve_nodes(bc: State<BlockchainState>) -> JsonResult {
+    match bc.blockchain.write(){
+        Ok(mut blockchain) => {
+            if blockchain.resolve_conflicts() {
+                to_json(node_resolve(String::from("Our chain was replaced"), &blockchain))
+            } else {
+                to_json(node_resolve(String::from("Our chain is authoritative"), &blockchain))
+            }
+        },
+        Err(e) => Err(e.to_string())
+    }
 }
 
 //API + Utility Functions
@@ -93,6 +119,25 @@ pub fn chain(b: &Blockchain) -> FullChainResponse {
     FullChainResponse {
         chain,
         length: chain.len() as u64,
+    }
+}
+
+pub fn node_reg(b: &Blockchain) -> NodeRegResponse{
+    let nodes = &b.nodes;
+    NodeRegResponse{
+        message: String::from("New Nodes have been added"),
+        nodes: nodes,
+    }
+}
+
+pub fn node_resolve(message: String, b: &Blockchain) -> NodeResolveResponse{
+    let chain = b.chain();
+    NodeResolveResponse{
+        message,
+        full_chain_response: FullChainResponse{
+          chain: chain,
+          length: chain.len() as u64 
+        },
     }
 }
 
@@ -120,6 +165,6 @@ fn main() {
     rocket::ignite()
         .manage(b)
         .manage(id)
-        .mount("/", routes![mine, new_transaction, transactions, full_chain, hello])
+        .mount("/", routes![mine, new_transaction, transactions, full_chain, nodes, register_nodes, resolve_nodes])
         .launch();
 }

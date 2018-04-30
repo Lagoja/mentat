@@ -1,0 +1,164 @@
+{
+	"info": {
+		"_postman_id": "b935fb67-6928-4962-bf21-c08bfb8370cc",
+		"name": "Mentat API Tests",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Mentat - New Transaction",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n \"sender\": \"Test\",\n \"recipient\": \"Test3\",\n \"amount\": 20\n}"
+				},
+				"url": {
+					"raw": "localhost:8001/transactions/new",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"transactions",
+						"new"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Mentat - View Full Chain",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {},
+				"url": {
+					"raw": "localhost:8000/chain",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"chain"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Mentat - View Transactions",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {},
+				"url": {
+					"raw": "localhost:8001/transactions",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"transactions"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Mentat - Mine",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {},
+				"url": {
+					"raw": "localhost:8001/mine",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"mine"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Mentat - Register Nodes",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n\t\"node_list\": [\"localhost:8001\", \"localhost:8002\"]\n}"
+				},
+				"url": {
+					"raw": "localhost:8000/nodes/register",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"nodes",
+						"register"
+					]
+				},
+				"description": "Register nodes to a running node"
+			},
+			"response": []
+		},
+		{
+			"name": "Mentat - View Registered Nodes",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {},
+				"url": {
+					"raw": "localhost:8000/nodes",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"nodes"
+					]
+				},
+				"description": "View all registered nodes"
+			},
+			"response": []
+		},
+		{
+			"name": "Mentat - Resolve Nodes",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {},
+				"url": {
+					"raw": "localhost:8000/nodes/resolve",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"nodes",
+						"resolve"
+					]
+				},
+				"description": "Resolve the blockchain by pulling and comparing the chain from all registered nodes"
+			},
+			"response": []
+		}
+	]
+}

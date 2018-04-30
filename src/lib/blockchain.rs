@@ -1,21 +1,19 @@
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
-use futures::{Future, Stream};
-use hyper::{Client, Uri};
-use hyper::{Chunk, StatusCode};
-use lib::response_types::FullChainResponse;
-use rocket::data::{self, FromData};
-use rocket::http::{ContentType, Status};
-use rocket::Outcome::*;
 use serde_json;
 use std::collections::hash_set::HashSet;
 use std::time;
-use tokio_core::reactor::Core;
 use uuid::Uuid;
+use reqwest;
 
 #[derive(Deserialize)]
 pub struct ChainResponse{
     pub chain: Vec<Block>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct NodeList {
+    pub node_list: Vec<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
@@ -120,32 +118,32 @@ impl Blockchain {
         let mut new_chain: Vec<Block> = vec![];
         let mut max_length = self.chain.len();
 
-        let core = Core::new().unwrap();
-        let client = Client::new(&core.handle());
+        let client = reqwest::Client::new();
 
         for node in neighbors.iter() {
-            let url: Uri = node.parse().unwrap();
+            let url: String = format!("http://{}/chain", node);
+            println!("Resolving node: {}", url);
 
-            let request = client.get(url)
-                .and_then(|res| {
-                    let status = res.status();
-                    if status == StatusCode::Ok {
-                        res.body().concat2().and_then(|body: Chunk| {
-                            let cr: ChainResponse = serde_json::from_slice::<ChainResponse>(&body).unwrap();
-                            if Blockchain::new_consensus(max_length, &cr.chain){
-                                max_length = cr.chain.len();
-                                new_chain = cr.chain;
-                            };
-                            Ok(())
-                        });
+            match client.get(url.as_str()).send(){
+                Ok(mut res) => {
+                    if res.status() == reqwest::StatusCode::Ok {
+                        let cr: ChainResponse = res.json().unwrap();
+                        if Blockchain::new_consensus(max_length, &cr.chain) {
+                            max_length = cr.chain.len();
+                            new_chain = cr.chain;
+                        }
                     }
-                    Ok(())
-                });
+                },
+                Err(e) => println!("Failed to get chain from {}. Error was {:?}",url, e)
+            }
+          }
+        if max_length > self.chain.len() {
+            self.chain = new_chain;
+            return true
         }
-
-        false
-    }
-
+        false 
+      }
+            
     pub fn chain(&self) -> &Vec<Block> {
         &self.chain
     }
